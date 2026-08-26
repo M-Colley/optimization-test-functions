@@ -1,0 +1,28 @@
+{
+  "name": "optimization-test-functions",
+  "version": "1.0.0",
+  "description": "Canonical global-optimization benchmarks and classical psychophysical laws, with per-axis domains and known optima. Zero dependencies.",
+  "keywords": [
+    "optimization", "benchmark", "test-functions", "global-optimization",
+    "ackley", "rastrigin", "rosenbrock", "griewank", "hartmann", "branin",
+    "schwefel", "shekel", "michalewicz", "eggholder", "powell",
+    "bayesian-optimization", "psychophysics", "hci", "fitts", "hick", "stevens"
+  ],
+  "type": "module",
+  "main": "./src/index.js",
+  "exports": {
+    ".": { "types": "./src/index.d.ts", "default": "./src/index.js" }
+  },
+  "types": "./src/index.d.ts",
+  "files": ["src/"],
+  "sideEffects": false,
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "test": "node --test"
+  },
+  "license": "MIT",
+  "author": "Mark Colley",
+  "repository": { "type": "git", "url": "git+https://github.com/M-Colley/optimization-test-functions.git" },
+  "bugs": { "url": "https://github.com/M-Colley/optimization-test-functions/issues" },
+  "homepage": "https://github.com/M-Colley/optimization-test-functions#readme"
+}
