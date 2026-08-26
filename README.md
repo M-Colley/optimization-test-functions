@@ -1,7 +1,13 @@
 # optimization-test-functions
 
+[![npm](https://img.shields.io/npm/v/optimization-test-functions.svg)](https://www.npmjs.com/package/optimization-test-functions)
+[![CI](https://github.com/M-Colley/optimization-test-functions/actions/workflows/ci.yml/badge.svg)](https://github.com/M-Colley/optimization-test-functions/actions/workflows/ci.yml)
+[![license](https://img.shields.io/npm/l/optimization-test-functions.svg)](./LICENSE)
+
 Standard global-optimization benchmarks and classical psychophysical laws, in
 JavaScript. No dependencies, no build step, ESM.
+
+**On npm:** <https://www.npmjs.com/package/optimization-test-functions>
 
 Every function ships with the metadata you need to use it correctly: the domain
 it is actually defined on, its known optimum, and which direction is the
