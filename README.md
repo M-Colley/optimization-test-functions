@@ -136,9 +136,22 @@ Two independent checks, both run in CI:
 - `python test/crosscheck_botorch.py` — compares **308 values across 11
   functions** against [BoTorch](https://botorch.org)'s `test_functions.synthetic`,
   the reference implementation most of the Bayesian-optimization field uses.
-  All agree to `1e-6` relative. (The tolerance is not tighter because BoTorch
-  stores its constant tables as float32 and upcasts, so its own constants carry
-  about `1e-8` of rounding; the values here are exact float64.)
+
+  | function | max relative difference |
+  |---|---|
+  | `ackley`, `eggholder`, `powell`, `rosenbrock`, `rastrigin` | `0` exactly |
+  | `griewank` | `3.5e-16` |
+  | `branin` | `5.5e-16` |
+  | `michalewicz` | `2.2e-15` |
+  | `shekel` | `5.8e-09` |
+  | `hartmann6` | `1.2e-08` |
+  | `hartmann3` | `2.9e-08` |
+
+  Nothing exceeds `3e-08`, and everything above machine epsilon is BoTorch's
+  own doing: it stores `ALPHA`, `A` and `C` as **float32** and upcasts, so its
+  constants carry about `1e-8` of rounding while the values here are exact
+  float64. That is why the tolerance is `1e-6` and not tighter — tightening it
+  fails on BoTorch's precision, not on ours.
 
 Schwefel is not in BoTorch, and the psychophysical laws are not optimization
 benchmarks, so those five are checked by the JS suite only.

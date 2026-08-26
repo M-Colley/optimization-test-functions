@@ -116,21 +116,25 @@ ours_vals = json.loads(r.stdout)
 
 # compare ------------------------------------------------------------------
 fails, checks = [], 0
-print("%-14s %-16s %s" % ("function", "botorch", "result"))
-print("-" * 52)
+print("%-14s %-16s %-5s %-12s %s" % ("function", "botorch", "pts", "max rel diff", "result"))
+print("-" * 62)
 for name, (bt, dim) in PAIRS.items():
     prob = build(bt, dim)
-    bad = 0
+    bad, worst = 0, 0.0
     for i, x in enumerate(allcases[name]):
         checks += 1
         theirs = float(prob(torch.tensor([x], dtype=torch.double), noise=False).reshape(()))
         mine = ours_vals[name][i]
         scale = max(1.0, abs(theirs))
-        if not math.isfinite(mine) or abs(theirs - mine) / scale > TOL:
+        rel = abs(theirs - mine) / scale
+        if rel > worst:
+            worst = rel
+        if not math.isfinite(mine) or rel > TOL:
             bad += 1
             if len(fails) < 12:
                 fails.append("%-12s pt%-3d botorch=%.12g  ours=%.12g" % (name, i, theirs, mine))
-    print("%-14s %-16s %s" % (name, bt, "ok" if bad == 0 else "%d MISMATCH" % bad))
+    print("%-14s %-16s %-5d %-12.3e %s"
+          % (name, bt, len(allcases[name]), worst, "ok" if bad == 0 else "%d MISMATCH" % bad))
 
 for name, why in SKIP.items():
     print("%-14s %-16s skipped (%s)" % (name, "-", why))
