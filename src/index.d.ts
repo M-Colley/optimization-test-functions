@@ -12,7 +12,7 @@ export interface Optimum {
   approx?: number[];
   /** Every global optimum, for functions that have more than one. */
   all?: number[][];
-  /** Published values keyed by dimension, when the optimum is d-dependent. */
+  /** Optimal values keyed by dimension, when the optimum is d-dependent. */
   known?: Record<number, number>;
   note?: string;
 }
@@ -68,10 +68,17 @@ export const functions: Record<FunctionName, TestFunction<any>>;
 export const optimizationBenchmarks: FunctionName[];
 export const psychophysicalLaws: FunctionName[];
 
-/** Wrap a function so a minimizer can be used as a maximizer, or vice versa. */
+/**
+ * Wrap a function so a minimizer can be used as a maximizer, or vice versa.
+ * `meta.sense`, `meta.optimum.value`, `meta.optimum.known` and
+ * `meta.monotone` all flip with the sign.
+ */
 export function negate<O>(f: TestFunction<O>): TestFunction<O>;
 
-/** The per-axis domain of `name` at dimension `d`. */
+/**
+ * The per-axis domain of `name` at dimension `d`. `d` is optional for
+ * fixed-dimension functions and must match their dimension if given.
+ */
 export function domain(name: FunctionName, d?: number): Box;
 
 /** Map a point from the unit cube onto `name`'s own domain. */

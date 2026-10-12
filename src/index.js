@@ -36,10 +36,26 @@ const mean = (x) => {
   return s / x.length;
 };
 
-/** Wrap a function so a minimizer can be used as a maximizer, or vice versa. */
+/**
+ * Wrap a function so a minimizer can be used as a maximizer, or vice versa.
+ * The metadata follows: the sense, the optimum value (and any per-dimension
+ * table of them) and the direction of monotonicity all flip with the sign.
+ */
 export function negate(f) {
   const g = (...args) => -f(...args);
-  if (f.meta) g.meta = { ...f.meta, sense: f.meta.sense === 'min' ? 'max' : 'min' };
+  if (f.meta) {
+    const { sense, monotone, optimum } = f.meta;
+    g.meta = {
+      ...f.meta,
+      sense: sense === 'min' ? 'max' : 'min',
+      optimum: { ...optimum, value: optimum.value === null ? null : -optimum.value },
+    };
+    if (optimum.known) {
+      g.meta.optimum.known = Object.fromEntries(
+        Object.entries(optimum.known).map(([d, v]) => [d, -v]));
+    }
+    if (monotone) g.meta.monotone = monotone === 'increasing' ? 'decreasing' : 'increasing';
+  }
   return g;
 }
 
@@ -87,11 +103,12 @@ export function schwefel(x) {
   assertLength(x, 'schwefel', (n) => n >= 1);
   let s = 0;
   for (let i = 0; i < x.length; i++) s += x[i] * Math.sin(Math.sqrt(Math.abs(x[i])));
-  return 418.9828872724339 * x.length - s;
+  // max of t sin(sqrt t): t = u^2 where tan(u) = -u/2, solved at 50 digits
+  return 418.9828872724337 * x.length - s;
 }
 schwefel.meta = {
   name: 'Schwefel', dims: 'any', sense: 'min', domain: cube(-500, 500),
-  optimum: { value: 0, at: (d) => new Array(d).fill(420.9687463) },
+  optimum: { value: 0, at: (d) => new Array(d).fill(420.96874635998205) },
   reference: 'Schwefel, H.-P. (1981). Numerical Optimization of Computer Models.',
 };
 
@@ -104,7 +121,7 @@ export function eggholder(x) {
 }
 eggholder.meta = {
   name: 'Eggholder', dims: 2, sense: 'min', domain: () => [[-512, 512], [-512, 512]],
-  optimum: { value: -959.6406627208506, at: () => [512, 404.2318058008512] },
+  optimum: { value: -959.6406627208509, at: () => [512, 404.2318051137578] },
   reference: 'Vanaret et al. (2014); after Whitley et al. (1996).',
 };
 
@@ -135,7 +152,9 @@ const SHEKEL_C = [0.1, 0.2, 0.2, 0.4, 0.4, 0.6, 0.3, 0.7, 0.5, 0.5];
 /** Shekel. Four dimensions, `m` narrow wells on a flat plain. */
 export function shekel(x, { m = 10 } = {}) {
   assertLength(x, 'shekel', (n) => n === 4);
-  if (!(m >= 1 && m <= 10)) throw new RangeError('shekel: m must be 1..10');
+  if (!(Number.isInteger(m) && m >= 1 && m <= 10)) {
+    throw new RangeError('shekel: m must be an integer in 1..10');
+  }
   let s = 0;
   for (let i = 0; i < m; i++) {
     let q = 0;
@@ -147,21 +166,25 @@ export function shekel(x, { m = 10 } = {}) {
 shekel.meta = {
   name: 'Shekel', dims: 4, sense: 'min', domain: cube(0, 10),
   optimum: {
-    value: -10.53644315348353,
+    value: -10.536443153483528,
     // Almost always quoted as (4, 4, 4, 4), which is only approximate: the
     // neighbouring wells pull the minimum slightly off that corner, and
-    // f(4,4,4,4) = -10.536283, not -10.536443. Refined location below.
-    at: () => [4.0007468671, 3.9995094806, 4.0007468700, 3.9995094776],
+    // f(4,4,4,4) = -10.536284, not -10.536443. Refined location below; it
+    // has x1 = x3 and x2 = x4, as the symmetry of the wells requires.
+    at: () => [4.000746868270634, 3.9995094800857736, 4.000746868270634, 3.9995094800857736],
     approx: [4, 4, 4, 4],
     note: 'for m = 10',
   },
-  reference: 'Shekel, J. (1971). Proc. 1971 IEEE Conf. on Decision and Control.',
+  reference: 'Shekel, J. (1971). Test functions for multimodal search techniques. '
+           + 'Fifth Annual Princeton Conf. on Information Science and Systems.',
 };
 
 const H_ALPHA = [1.0, 1.2, 3.0, 3.2];
 const H3_A = [[3.0, 10, 30], [0.1, 10, 35], [3.0, 10, 30], [0.1, 10, 35]];
+// v / 1e4 rather than v * 1e-4: 1e-4 is inexact, and the product is 1 ulp off
+// the decimal constant for a third of the entries; the quotient never is.
 const H3_P = [[3689, 1170, 2673], [4699, 4387, 7470],
-              [1091, 8732, 5547], [381, 5743, 8828]].map((r) => r.map((v) => v * 1e-4));
+              [1091, 8732, 5547], [381, 5743, 8828]].map((r) => r.map((v) => v / 1e4));
 
 /** Hartmann 3-D. Four Gaussian basins of unequal depth. */
 export function hartmann3(x) {
@@ -176,7 +199,14 @@ export function hartmann3(x) {
 }
 hartmann3.meta = {
   name: 'Hartmann-3', dims: 3, sense: 'min', domain: cube(0, 1),
-  optimum: { value: -3.86278214782076, at: () => [0.114614, 0.555649, 0.852547] },
+  optimum: {
+    value: -3.8627797873326624,
+    // The widely copied -3.86278214782076 is 2.4e-6 BELOW the true minimum,
+    // so no point attains it, and the usual location (kept as `approx`) is
+    // 2.5e-5 off in x1. Both re-derived at 50 digits.
+    at: () => [0.11458887665506896, 0.55564889461693, 0.8525469846866774],
+    approx: [0.114614, 0.555649, 0.852547],
+  },
   reference: 'Hartman, J. K. (1973). Naval Research Logistics Quarterly 20(3).',
 };
 
@@ -184,7 +214,7 @@ const H6_A = [[10, 3, 17, 3.5, 1.7, 8], [0.05, 10, 17, 0.1, 8, 14],
               [3, 3.5, 1.7, 10, 17, 8], [17, 8, 0.05, 10, 0.1, 14]];
 const H6_P = [[1312, 1696, 5569, 124, 8283, 5886], [2329, 4135, 8307, 3736, 1004, 9991],
               [2348, 1451, 3522, 2883, 3047, 6650], [4047, 8828, 8732, 5743, 1091, 381]]
-             .map((r) => r.map((v) => v * 1e-4));
+             .map((r) => r.map((v) => v / 1e4));
 
 /** Hartmann 6-D. The usual stress test for a GP with one lengthscale per axis. */
 export function hartmann6(x) {
@@ -200,8 +230,12 @@ export function hartmann6(x) {
 hartmann6.meta = {
   name: 'Hartmann-6', dims: 6, sense: 'min', domain: cube(0, 1),
   optimum: {
-    value: -3.322368011391339,
-    at: () => [0.20169, 0.150011, 0.476874, 0.275332, 0.311652, 0.6573],
+    // The usual value -3.322368011391339 is f at the usual six-digit
+    // location (kept as `approx`), not the minimum, which is 2.4e-11 lower.
+    value: -3.3223680114155147,
+    at: () => [0.20168951100670543, 0.15001069182345797, 0.476873974221897,
+               0.2753324304940561, 0.31165161660011326, 0.6573005340656203],
+    approx: [0.20169, 0.150011, 0.476874, 0.275332, 0.311652, 0.6573],
   },
   reference: 'Hartman, J. K. (1973). Naval Research Logistics Quarterly 20(3).',
 };
@@ -220,9 +254,9 @@ export function branin(x, { a = 1, b = 5.1 / (4 * Math.PI ** 2), c = 5 / Math.PI
 branin.meta = {
   name: 'Branin', dims: 2, sense: 'min', domain: () => [[-5, 10], [0, 15]],
   optimum: {
-    value: 0.39788735772973816,
+    value: 5 / (4 * Math.PI),
     at: () => [-Math.PI, 12.275],
-    all: [[-Math.PI, 12.275], [Math.PI, 2.275], [9.42478, 2.475]],
+    all: [[-Math.PI, 12.275], [Math.PI, 2.275], [3 * Math.PI, 2.475]],
   },
   reference: 'Branin, F. H. (1972). IBM Journal of Research and Development 16(5).',
 };
@@ -268,8 +302,17 @@ michalewicz.meta = {
   name: 'Michalewicz', dims: 'any', sense: 'min', domain: cube(0, Math.PI),
   optimum: {
     value: null,
-    note: 'depends on d; published values are -1.8013 (d=2), -4.687658 (d=5), -9.66015 (d=10) at m=10',
-    known: { 2: -1.8013, 5: -4.687658, 10: -9.66015 },
+    // f is a sum of one-dimensional terms, so its d-D minimum is exactly the
+    // sum of the 1-D minima. Each was solved at 50 digits; see
+    // test/crosscheck_optima.py.
+    note: 'depends on d; exact for d = 1..10 at m = 10. Agrees with the published '
+        + '-1.8013 (d=2), -4.687658 (d=5) and -9.66015 (d=10).',
+    known: {
+      1: -0.8013034100985525, 2: -1.8013034100985525, 3: -2.7603946799945587,
+      4: -3.698857098466642, 5: -4.687658179088146, 6: -5.687658179088146,
+      7: -6.680885314444028, 8: -7.663757350716239, 9: -8.66015171564134,
+      10: -9.66015171564134,
+    },
   },
   reference: 'Michalewicz, Z. (1996). Genetic Algorithms + Data Structures = Evolution Programs.',
 };
@@ -296,6 +339,7 @@ export function yerkesDodson(x, { peak = 0.5, width = 0.15 } = {}) {
 yerkesDodson.meta = {
   name: 'Yerkes-Dodson', dims: 'any', sense: 'max', domain: cube(0, 1), monotone: false,
   optimum: { value: 1, at: (d) => new Array(d).fill(0.5) },
+  note: 'The 1908 paper reports the effect, not a formula; the Gaussian inverted-U is a stylisation.',
   reference: 'Yerkes, R. M., & Dodson, J. D. (1908). J. Comparative Neurology and Psychology 18.',
 };
 
@@ -372,15 +416,23 @@ export function domain(name, d) {
   const f = functions[name];
   if (!f) throw new RangeError(`unknown function: ${name}`);
   const dims = f.meta.dims;
-  if (typeof dims === 'number') d = dims;
+  if (typeof dims === 'number') {
+    if (d !== undefined && d !== dims) throw new RangeError(`${name} is ${dims}-D, not ${d}-D`);
+    d = dims;
+  }
   if (d === undefined) throw new RangeError(`${name}: dimension is required`);
+  if (!(Number.isInteger(d) && d >= 1)) {
+    throw new RangeError(`${name}: dimension must be a positive integer, got ${d}`);
+  }
   return f.meta.domain(d);
 }
 
 /** Uniformly map a point from the unit cube onto `name`'s own domain. */
 export function fromUnitCube(name, u) {
   const box = domain(name, u.length);
-  return u.map((v, i) => box[i][0] + v * (box[i][1] - box[i][0]));
+  // Array.from, not u.map: a Float32Array input would otherwise come back as
+  // a Float32Array and round the mapped point to single precision.
+  return Array.from(u, (v, i) => box[i][0] + v * (box[i][1] - box[i][0]));
 }
 
 export default functions;
