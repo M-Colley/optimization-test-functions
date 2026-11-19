@@ -2,7 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   functions, optimizationBenchmarks, psychophysicalLaws,
-  domain, fromUnitCube, negate, branin, ackley, shekel, michalewicz, hickHyman, stevens,
+  domain, fromUnitCube, negate,
+  branin, ackley, griewank, schwefel, powell, shekel,
+  rosenbrock, rastrigin, michalewicz, yerkesDodson, hickHyman, stevens, weberFechner,
 } from '../src/index.js';
 
 /* A dimension each function actually accepts. */
@@ -69,6 +71,10 @@ test('every function carries usable metadata', () => {
     const box = domain(n, DIM[n]);
     assert.equal(box.length, DIM[n], `${n} domain has one range per axis`);
     for (const [lo, hi] of box) assert.ok(hi > lo, `${n} range is non-empty`);
+    if (typeof m.dims === 'number') {
+      assert.deepEqual(m.domain(), box, `${n}.meta.domain() works with no argument`);
+      if (m.optimum.at) assert.equal(m.optimum.at().length, m.dims, `${n}.meta.optimum.at() works with no argument`);
+    }
   }
 });
 
@@ -84,6 +90,14 @@ test('the stated optimum is attained, to the ulp, at the stated location', () =>
         `${n}: f(${at}) = ${got}, meta says ${m.optimum.value}`);
     }
   }
+  // Exact zero / intercept checks and high-d Schwefel stability
+  assert.equal(ackley([0, 0, 0]), 0);
+  assert.equal(hickHyman([0, 0, 0]), 0.2);
+  assert.ok(griewank([1e-9, 0]) > 0);
+  assert.ok(rastrigin([1e-9, 0]) > 0);
+  for (const d of [1, 7, 24, 50, 100]) {
+    assert.equal(schwefel(schwefel.meta.optimum.at(d)), 0, `schwefel d=${d}`);
+  }
 });
 
 test('the stated optimum cannot be improved by local search from it', () => {
@@ -93,9 +107,11 @@ test('the stated optimum cannot be improved by local search from it', () => {
     const f = functions[n], m = f.meta;
     if (m.optimum.value === null) continue;
     const box = domain(n, DIM[n]), want = m.optimum.value;
-    const got = polish(f, m.optimum.at(DIM[n]), box, m.sense);
-    const better = m.sense === 'min' ? got < want : got > want;
-    assert.ok(!better || close(got, want), `${n}: local search reached ${got}, past the stated ${want}`);
+    for (const start of [m.optimum.at(DIM[n]), ...(m.optimum.all ?? [])]) {
+      const got = polish(f, start, box, m.sense);
+      const better = m.sense === 'min' ? got < want : got > want;
+      assert.ok(!better || close(got, want), `${n}: local search reached ${got}, past the stated ${want}`);
+    }
   }
 });
 
@@ -134,8 +150,11 @@ test("michalewicz's known optima are exact, by separability", () => {
   const r = (Math.sqrt(5) - 1) / 2, n = 100000, h = Math.PI / n, at = [];
   for (let i = 1; i <= 10; i++) {
     const g = (t) => Math.sin(t) * Math.sin(i * t * t / Math.PI) ** 20;
-    let k0 = 0;
-    for (let k = 1; k <= n; k++) if (g(k * h) > g(k0 * h)) k0 = k;
+    let k0 = 0, bestG = g(0);
+    for (let k = 1; k <= n; k++) {
+      const gk = g(k * h);
+      if (gk > bestG) { bestG = gk; k0 = k; }
+    }
     let lo = Math.max(0, (k0 - 1) * h), hi = Math.min(Math.PI, (k0 + 1) * h);
     let a = hi - r * (hi - lo), b = lo + r * (hi - lo), ga = g(a), gb = g(b);
     for (let it = 0; it < 80; it++) {
@@ -151,15 +170,33 @@ test("michalewicz's known optima are exact, by separability", () => {
   assert.equal(known[10].toFixed(5), '-9.66015');
 });
 
-test('dimension validation rejects wrong input', () => {
+test('dimension and type validation rejects wrong input', () => {
   assert.throws(() => branin([1, 2, 3]), RangeError);
   assert.throws(() => shekel([1, 2, 3]), RangeError);
-  assert.throws(() => functions.powell([1, 2, 3]), RangeError);   // not a multiple of 4
+  assert.throws(() => powell([1, 2, 3]), RangeError);              // not a multiple of 4
+  assert.throws(() => rosenbrock([1]), RangeError);                // needs >= 2
   assert.throws(() => ackley('nope'), TypeError);
+  assert.throws(() => ackley(new DataView(new ArrayBuffer(16))), TypeError);
+  assert.throws(() => ackley(new BigInt64Array([1n, 2n])), TypeError);
+  assert.throws(() => ackley(new BigUint64Array([1n, 2n])), TypeError);
+  assert.throws(() => domain('toString', 2), RangeError);          // Object.prototype key
+  assert.throws(() => domain('constructor', 2), RangeError);
   assert.throws(() => domain('branin', 3), RangeError);            // fixed 2-D
+  assert.throws(() => domain('rosenbrock', 1), RangeError);        // >= 2
+  assert.throws(() => domain('powell', 3), RangeError);            // multiple of 4
   assert.throws(() => domain('ackley', 0), RangeError);
   assert.throws(() => domain('ackley', 2.5), RangeError);
+  assert.throws(() => ackley.meta.optimum.at(), RangeError);
+  assert.throws(() => rosenbrock.meta.optimum.at(1), RangeError);
+  assert.throws(() => powell.meta.optimum.at(3), RangeError);
+  assert.throws(() => branin.meta.domain(3), RangeError);
+  assert.throws(() => shekel.meta.domain(2), RangeError);
   assert.throws(() => fromUnitCube('branin', [0.5]), RangeError);
+  assert.throws(() => fromUnitCube('rosenbrock', [0.5]), RangeError);
+  assert.throws(() => fromUnitCube('powell', [0.5, 0.5, 0.5]), RangeError);
+  assert.throws(() => fromUnitCube('ackley', 'abcd'), TypeError);
+  assert.throws(() => fromUnitCube('branin', { length: 2 }), TypeError);
+  assert.throws(() => fromUnitCube('toString', [0.5, 0.5]), RangeError);
 });
 
 test('negate flips the value and all of the metadata that depends on its sign', () => {
@@ -168,6 +205,8 @@ test('negate flips the value and all of the metadata that depends on its sign', 
   assert.equal(g(x), -ackley(x));
   assert.equal(ackley.meta.sense, 'min');
   assert.equal(g.meta.sense, 'max');
+  assert.equal(g.meta.optimum.value, 0);                           // +0, not -0
+  assert.equal(negate(griewank)([0, 0]), 0);                       // +0, not -0
 
   const nb = negate(branin);
   assert.equal(nb.meta.optimum.value, -branin.meta.optimum.value);
@@ -183,6 +222,8 @@ test('negate flips the value and all of the metadata that depends on its sign', 
   assert.equal(nm.meta.optimum.known[2], -michalewicz.meta.optimum.known[2]);
 
   assert.deepEqual(negate(negate(branin)).meta, branin.meta);
+  assert.deepEqual(negate(negate(ackley)).meta, ackley.meta);
+  assert.throws(() => negate('nope'), TypeError);
 });
 
 test('fromUnitCube respects a per-axis domain', () => {
@@ -190,6 +231,7 @@ test('fromUnitCube respects a per-axis domain', () => {
   assert.deepEqual(fromUnitCube('branin', [1, 1]), [10, 15]);
   const mid = fromUnitCube('branin', [0.5, 0.5]);
   assert.deepEqual(mid, [2.5, 7.5]);
+  assert.deepEqual(fromUnitCube('ackley', [0, 0.5, 1]), [-32.768, 0, 32.768]);
 });
 
 test('fromUnitCube returns plain doubles for typed-array input', () => {
@@ -202,12 +244,23 @@ test('fromUnitCube returns plain doubles for typed-array input', () => {
 test('hickHyman returns a time, so lower is better', () => {
   assert.equal(hickHyman.meta.sense, 'min');
   assert.ok(hickHyman([0, 0, 0]) < hickHyman([10, 10, 10]));
+  assert.equal(hickHyman([0, 0], { a: 0, b: 0.15 }), 0);
 });
 
-test('optional parameters are honoured', () => {
+test('optional parameters are honoured and validated', () => {
   assert.notEqual(shekel([4, 4, 4, 4], { m: 5 }), shekel([4, 4, 4, 4], { m: 10 }));
   assert.notEqual(michalewicz([1, 2], { m: 1 }), michalewicz([1, 2], { m: 10 }));
   assert.notEqual(ackley([1, 1], { a: 25 }), ackley([1, 1]));
+  assert.throws(() => ackley([1, 1], null), TypeError);
   assert.throws(() => shekel([4, 4, 4, 4], { m: 5.5 }), RangeError);
   assert.throws(() => shekel([4, 4, 4, 4], { m: 11 }), RangeError);
+  assert.throws(() => michalewicz([1, 2], { m: 0 }), RangeError);
+  assert.throws(() => michalewicz([1, 2], { m: 0.5 }), RangeError);
+  assert.throws(() => yerkesDodson([0.5], { width: 0 }), RangeError);
+  assert.throws(() => yerkesDodson([0.5], { width: -0.1 }), RangeError);
+  assert.throws(() => stevens([0.5], { a: 0 }), RangeError);
+  assert.throws(() => stevens([0.5], { a: -1 }), RangeError);
+  assert.throws(() => hickHyman([1], { b: 0 }), RangeError);
+  assert.throws(() => weberFechner([0.5], { i0: 0 }), RangeError);
+  assert.throws(() => weberFechner([0.5], { i0: -1 }), RangeError);
 });

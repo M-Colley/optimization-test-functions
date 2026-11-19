@@ -170,8 +170,11 @@ Three independent checks, all run in CI:
 
   | function | max relative difference |
   |---|---|
-  | `ackley`, `eggholder`, `powell`, `rosenbrock`, `rastrigin` | `0` exactly |
+  | `eggholder`, `rosenbrock` | `0` exactly |
+  | `rastrigin` | `1.9e-16` |
+  | `powell` | `2.3e-16` |
   | `griewank` | `3.5e-16` |
+  | `ackley` | `4.4e-16` |
   | `branin` | `5.5e-16` |
   | `michalewicz` | `2.2e-15` |
   | `shekel` | `5.8e-09` |

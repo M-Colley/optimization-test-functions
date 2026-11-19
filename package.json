@@ -6,7 +6,7 @@
     "optimization", "benchmark", "test-functions", "global-optimization",
     "ackley", "rastrigin", "rosenbrock", "griewank", "hartmann", "branin",
     "schwefel", "shekel", "michalewicz", "eggholder", "powell",
-    "bayesian-optimization", "psychophysics", "hci", "fitts", "hick", "stevens"
+    "bayesian-optimization", "psychophysics", "hci", "hick", "stevens"
   ],
   "type": "module",
   "main": "./src/index.js",

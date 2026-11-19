@@ -1,4 +1,9 @@
-export type Vec = readonly number[] | Float64Array | Float32Array;
+export type TypedNumberArray =
+  | Float64Array | Float32Array
+  | Int32Array | Int16Array | Int8Array
+  | Uint32Array | Uint16Array | Uint8Array | Uint8ClampedArray;
+
+export type Vec = readonly number[] | TypedNumberArray;
 
 /** One [lo, hi] pair per axis. */
 export type Box = [number, number][];
@@ -6,8 +11,8 @@ export type Box = [number, number][];
 export interface Optimum {
   /** The optimal value, or null when it depends on the dimension. */
   value: number | null;
-  /** The location, given the dimension. Absent when `value` is null. */
-  at?: (d: number) => number[];
+  /** The location, given the dimension (optional on fixed-dimension functions). Absent when `value` is null. */
+  at?: (d?: number) => number[];
   /** A commonly quoted but only approximate location, where one exists. */
   approx?: number[];
   /** Every global optimum, for functions that have more than one. */
@@ -23,8 +28,8 @@ export interface Meta {
   dims: number | string;
   /** Which direction is interesting. Nothing here is silently negated. */
   sense: 'min' | 'max';
-  /** The function's own domain, per axis, at dimension d. */
-  domain: (d: number) => Box;
+  /** The function's own domain, per axis, at dimension d (optional on fixed-dimension functions). */
+  domain: (d?: number) => Box;
   optimum: Optimum;
   /** Present on the psychophysical laws; false or a direction. */
   monotone?: false | 'increasing' | 'decreasing';

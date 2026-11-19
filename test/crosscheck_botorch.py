@@ -78,41 +78,40 @@ def points(box, n=25):
     return out
 
 
+def run_node(code, payload=None):
+    r = subprocess.run(
+        ["node", "--input-type=module", "-e", code],
+        input=None if payload is None else json.dumps(payload),
+        capture_output=True, text=True, cwd=HERE,
+    )
+    if r.returncode != 0:
+        sys.exit("node probe failed:\n" + r.stdout + r.stderr)
+    return json.loads(r.stdout)
+
+
 # ask the JS side for its domains and values ------------------------------
-cases = {}
-for ours, (_bt, dim) in PAIRS.items():
-    cases[ours] = {"dim": dim}
-probe = os.path.join(HERE, "_probe.mjs")
-with open(probe, "w", encoding="utf-8") as fh:
-    fh.write("""
-import { functions, domain } from '../src/index.js';
-const spec = JSON.parse(process.argv[2]);
+cases = {ours: {"dim": dim} for ours, (_bt, dim) in PAIRS.items()}
+boxes = {
+    k: v["box"]
+    for k, v in run_node("""
+import fs from 'node:fs';
+import { domain } from '../src/index.js';
+const spec = JSON.parse(fs.readFileSync(0, 'utf8'));
 const out = {};
-for (const [name, { dim }] of Object.entries(spec)) {
-  out[name] = { box: domain(name, dim) };
-}
+for (const [name, { dim }] of Object.entries(spec)) out[name] = { box: domain(name, dim) };
 process.stdout.write(JSON.stringify(out));
-""")
-r = subprocess.run(["node", probe, json.dumps(cases)], capture_output=True, text=True, cwd=HERE)
-if r.returncode != 0:
-    os.remove(probe)
-    sys.exit("node probe failed:\n" + r.stdout + r.stderr)
-boxes = {k: v["box"] for k, v in json.loads(r.stdout).items()}
+""", cases).items()
+}
 
 allcases = {name: points(boxes[name]) for name in PAIRS}
-with open(probe, "w", encoding="utf-8") as fh:
-    fh.write("""
+ours_vals = run_node("""
+import fs from 'node:fs';
 import { functions } from '../src/index.js';
-const cases = JSON.parse(process.argv[2]);
+const cases = JSON.parse(fs.readFileSync(0, 'utf8'));
 const out = {};
 for (const [name, pts] of Object.entries(cases)) out[name] = pts.map((x) => functions[name](x));
 process.stdout.write(JSON.stringify(out));
-""")
-r = subprocess.run(["node", probe, json.dumps(allcases)], capture_output=True, text=True, cwd=HERE)
-os.remove(probe)
-if r.returncode != 0:
-    sys.exit("node eval failed:\n" + r.stdout + r.stderr)
-ours_vals = json.loads(r.stdout)
+""", allcases)
 
 # compare ------------------------------------------------------------------
 fails, checks = [], 0

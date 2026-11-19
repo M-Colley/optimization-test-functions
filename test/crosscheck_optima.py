@@ -43,9 +43,8 @@ def newton(grad, x0):
 
 
 # ask the JS side for its stated optima ------------------------------------
-probe = os.path.join(HERE, "_probe.mjs")
-with open(probe, "w", encoding="utf-8") as fh:
-    fh.write("""
+r = subprocess.run(
+    ["node", "--input-type=module", "-e", """
 import { functions } from '../src/index.js';
 const dims = { schwefel: 1, eggholder: 2, shekel: 4, hartmann3: 3, hartmann6: 6, branin: 2 };
 const out = {};
@@ -55,9 +54,9 @@ for (const [name, d] of Object.entries(dims)) {
 }
 out.michalewicz = { known: functions.michalewicz.meta.optimum.known };
 process.stdout.write(JSON.stringify(out));
-""")
-r = subprocess.run(["node", probe], capture_output=True, text=True, cwd=HERE)
-os.remove(probe)
+"""],
+    capture_output=True, text=True, cwd=HERE,
+)
 if r.returncode != 0:
     sys.exit("node probe failed:\n" + r.stdout + r.stderr)
 stated = json.loads(r.stdout)
