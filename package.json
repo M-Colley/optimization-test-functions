@@ -1,6 +1,6 @@
 {
   "name": "optimization-test-functions",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Canonical global-optimization benchmarks and classical psychophysical laws, with per-axis domains and known optima. Zero dependencies.",
   "keywords": [
     "optimization", "benchmark", "test-functions", "global-optimization",
